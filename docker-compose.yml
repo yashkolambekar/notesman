@@ -1,0 +1,80 @@
+# Notesman for Coolify (or any Docker host).
+#
+#   web     Next.js. The only public service: give it your domain, port 3000.
+#   api     FastAPI. Internal only. Runs database migrations on start.
+#   worker  Ingestion worker. Reads uploaded files, embeds them, fills Qdrant. Run ONE.
+#
+# Postgres, Qdrant, Cloudflare R2, Google and OpenRouter are external: set them in the
+# environment variables below (Coolify shows each ${VAR} as a field in its UI).
+#
+# For a local Qdrant while developing: docker compose -f docker-compose.dev.yml up -d
+
+x-backend-env: &backend-env
+  # Models
+  GEMINI_API_KEY: ${GEMINI_API_KEY:?}
+  EMBED_MODEL: ${EMBED_MODEL:-gemini-embedding-2}
+  EMBED_DIM: ${EMBED_DIM:-1536}
+  EMBED_BATCH_SIZE: ${EMBED_BATCH_SIZE:-16}
+  OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:?}
+  CHAT_MODEL: ${CHAT_MODEL:?}
+  FAST_MODEL: ${FAST_MODEL:-}
+  GROUNDING_CHECK: ${GROUNDING_CHECK:-true}
+  DEFAULT_MARKS: ${DEFAULT_MARKS:-5}
+  # Data stores
+  DATABASE_URL: ${DATABASE_URL:?}
+  QDRANT_URL: ${QDRANT_URL:?}
+  QDRANT_API_KEY: ${QDRANT_API_KEY:-}
+  QDRANT_COLLECTION: ${QDRANT_COLLECTION:-notesman_chunks}
+  R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:?}
+  R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:?}
+  R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:?}
+  R2_BUCKET: ${R2_BUCKET:?}
+  # Auth
+  GOOGLE_AUTH_CLIENT_ID: ${GOOGLE_AUTH_CLIENT_ID:?}
+  GOOGLE_AUTH_CLIENT_SECRET: ${GOOGLE_AUTH_CLIENT_SECRET:?}
+  SESSION_SECRET: ${SESSION_SECRET:?}
+  SUPERADMIN_EMAIL: ${SUPERADMIN_EMAIL:?}
+  PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?}
+
+services:
+  api:
+    build: .
+    restart: unless-stopped
+    environment: *backend-env
+    expose:
+      - "8001"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8001/health', timeout=4)"]
+      interval: 15s
+      timeout: 6s
+      retries: 5
+      start_period: 40s
+
+  worker:
+    build: .
+    restart: unless-stopped
+    command: ["python", "-m", "notesman.ingest.worker"]
+    environment: *backend-env
+    depends_on:
+      api:
+        condition: service_healthy  # the API applies migrations first
+    stop_grace_period: 30s
+
+  web:
+    build:
+      context: ./web
+      args:
+        API_URL: http://api:8001
+        NEXT_PUBLIC_SITE_URL: ${PUBLIC_BASE_URL:?}
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    expose:
+      - "3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/',{redirect:'manual'}).then(r=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 6s
+      retries: 5
+      start_period: 20s
