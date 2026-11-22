@@ -109,3 +109,4 @@ class MoveIn(BaseModel):
 class GenerateIn(BaseModel):
     nudges: list[str] = []
     comment: str = Field(default="", max_length=1000)
+    allow_unsourced: bool = False  # answer from general knowledge, flagged, when the files have nothing relevant

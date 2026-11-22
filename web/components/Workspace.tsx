@@ -17,6 +17,7 @@ import {
   saveAnswer,
   unlockQuestion,
 } from "@/lib/api";
+import { ApiError } from "@/lib/api";
 import type { Paper, Question, Subject } from "@/lib/types";
 
 /** Citations like [1] stay on the server for the sources panel but never show in the paper. */
@@ -37,6 +38,7 @@ export default function Workspace({ subject, paper }: Props) {
   );
   const [busy, setBusy] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
+  const [noMaterial, setNoMaterial] = useState<{ id: string; steer: { nudges: string[]; comment: string } } | null>(null);
   const [draft, setDraft] = useState("");
   const [adding, setAdding] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
@@ -83,8 +85,19 @@ export default function Workspace({ subject, paper }: Props) {
     }
   };
 
-  const regenerate = async (id: string, steer: { nudges: string[]; comment: string }) => {
-    const q = await run(id, () => generateAnswer(id, steer));
+  const regenerate = async (id: string, steer: { nudges: string[]; comment: string }, unsourced = false) => {
+    setNoMaterial(null);
+    const q = await run(id, async () => {
+      try {
+        return await generateAnswer(id, { ...steer, allow_unsourced: unsourced });
+      } catch (e) {
+        if (e instanceof ApiError && e.code === "no_material") {
+          setNoMaterial({ id, steer }); // offer "answer anyway" instead of a plain error
+          return undefined;
+        }
+        throw e;
+      }
+    });
     if (q) replace(q);
   };
   const save = async (id: string, answer: string) => {
@@ -304,6 +317,8 @@ export default function Workspace({ subject, paper }: Props) {
           index={activeIndex}
           busy={busy.has(active.id)}
           onRegenerate={(s) => regenerate(active.id, s)}
+          noMaterial={noMaterial?.id === active.id}
+          onAnswerAnyway={() => noMaterial && regenerate(active.id, noMaterial.steer, true)}
           onSave={(a) => save(active.id, a)}
           onLock={() => lock(active.id)}
           onUnlock={() => unlock(active.id)}

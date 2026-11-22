@@ -138,3 +138,45 @@ def test_generate_records_spend_even_when_it_fails_and_costs_are_admin_only(admi
             with TestClient(app, headers={"origin": "http://localhost:3000"}) as c:
                 c.delete(f"/v1/courses/{cid}")
         app.dependency_overrides.clear()
+
+
+def test_no_material_is_machine_readable_and_allow_flag_is_passed(admin_user, cleanup_events, monkeypatch):  # noqa: F811
+    from notesman.answer.generate import Draft, NoMaterial
+
+    class Fake:
+        def __init__(self, s, api_key=None, usage=None): ...
+        async def aclose(self): ...
+
+    seen = {}
+
+    async def gen(*, allow_unsourced, **kw):
+        seen["allow"] = allow_unsourced
+        if not allow_unsourced:
+            raise NoMaterial()
+        return Draft("> warning\n\nanswer", [], None, "fake/model", False)
+
+    monkeypatch.setattr(papers, "GeminiEmbedder", Fake)
+    monkeypatch.setattr(papers, "OpenRouterChat", Fake)
+    monkeypatch.setattr(papers, "run_generation", gen)
+    app.dependency_overrides[current_user] = lambda: admin_user
+    app.dependency_overrides[require_admin] = lambda: admin_user
+    cid = None
+    try:
+        with TestClient(app, headers={"origin": "http://localhost:3000"}) as c:
+            app.state.qdrant_error = None
+            c.put("/v1/me/api-keys", json={"gemini": "g-1234", "openrouter": "o-5678"})
+            cid = c.post("/v1/courses", json={"name": "zz nomat course"}).json()["id"]
+            sid = c.post(f"/v1/courses/{cid}/subjects", json={"name": "S"}).json()["id"]
+            pid = c.post(f"/v1/subjects/{sid}/papers", json={"title": "P"}).json()["id"]
+            qid = c.post(f"/v1/papers/{pid}/questions", json={"prompt": "Q?"}).json()["id"]
+            r = c.post(f"/v1/questions/{qid}/generate", json={})
+            assert r.status_code == 422 and r.json()["detail"]["code"] == "no_material", r.text
+            r = c.post(f"/v1/questions/{qid}/generate", json={"allow_unsourced": True})
+            assert r.status_code == 200 and r.json()["answer_md"].startswith("> warning") and seen["allow"] is True
+    finally:
+        app.dependency_overrides[current_user] = lambda: admin_user
+        app.dependency_overrides[require_admin] = lambda: admin_user
+        if cid:
+            with TestClient(app, headers={"origin": "http://localhost:3000"}) as c:
+                c.delete(f"/v1/courses/{cid}")
+        app.dependency_overrides.clear()

@@ -19,6 +19,8 @@ from notesman.api.schemas import (
     QuestionOut,
     QuestionPatch,
 )
+from qdrant_client.http.exceptions import ResponseHandlingException, UnexpectedResponse
+
 from notesman.api.keys import MissingKeys, missing_message, user_keys
 from notesman.core.crypto import KeyVaultError
 from notesman.core.usage import UsageCollector
@@ -347,17 +349,23 @@ async def generate_answer(
             nudges=body.nudges,
             comment=body.comment,
             previous=previous,
+            allow_unsourced=body.allow_unsourced,
         )
     except NoMaterial:
         raise HTTPException(
             422,
-            "Nothing in this subject's files is relevant to this question. Upload material that covers it, "
-            "or reword the question.",
+            {
+                "code": "no_material",
+                "message": "Nothing in this subject's files is relevant to this question. Upload material that "
+                "covers it, reword the question, or answer anyway from general knowledge.",
+            },
         ) from None
     except EmbedError as e:
         raise HTTPException(503, f"The embedding service is busy or failing, try again shortly. ({e})") from e
     except ChatError as e:
         raise HTTPException(502, f"The answer model failed: {e}") from e
+    except (ResponseHandlingException, UnexpectedResponse) as e:
+        raise HTTPException(503, f"The search index (Qdrant) is unreachable, try again shortly. ({type(e).__name__})") from e
     finally:
         await emb.aclose()
         await chat.aclose()

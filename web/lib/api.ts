@@ -4,6 +4,7 @@ export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
+    public code?: string,
   ) {
     super(message);
   }
@@ -11,13 +12,15 @@ export class ApiError extends Error {
 
 const BASE = "/api"; // proxied to the FastAPI server by next.config.ts
 
-async function detail(res: Response): Promise<string> {
+async function detail(res: Response): Promise<{ message: string; code?: string }> {
   try {
     const j = await res.json();
-    if (typeof j.detail === "string") return j.detail;
-    if (Array.isArray(j.detail)) return j.detail.map((d: { msg: string }) => d.msg).join(", ");
+    if (typeof j.detail === "string") return { message: j.detail };
+    if (j.detail && typeof j.detail === "object" && typeof j.detail.message === "string")
+      return { message: j.detail.message, code: j.detail.code };
+    if (Array.isArray(j.detail)) return { message: j.detail.map((d: { msg: string }) => d.msg).join(", ") };
   } catch {}
-  return `Request failed (${res.status})`;
+  return { message: `Request failed (${res.status})` };
 }
 
 async function req<T>(path: string, init: RequestInit & { json?: unknown } = {}): Promise<T> {
@@ -28,7 +31,10 @@ async function req<T>(path: string, init: RequestInit & { json?: unknown } = {})
     headers: json !== undefined ? { "Content-Type": "application/json" } : undefined,
     body: json !== undefined ? JSON.stringify(json) : rest.body,
   });
-  if (!res.ok) throw new ApiError(res.status, await detail(res));
+  if (!res.ok) {
+    const d = await detail(res);
+    throw new ApiError(res.status, d.message, d.code);
+  }
   return res.status === 204 ? (undefined as T) : res.json();
 }
 
@@ -99,7 +105,7 @@ export const unlockQuestion = (id: string) => post<Question>(`/v1/questions/${id
 export const moveQuestion = (id: string, beforeId: string | null) =>
   post<Question>(`/v1/questions/${id}/move`, { before_id: beforeId });
 export const deleteQuestion = (id: string) => req<void>(`/v1/questions/${id}`, { method: "DELETE" });
-export const generateAnswer = (id: string, steer: { nudges: string[]; comment: string }) =>
+export const generateAnswer = (id: string, steer: { nudges: string[]; comment: string; allow_unsourced?: boolean }) =>
   post<Question>(`/v1/questions/${id}/generate`, steer);
 
 // Own API keys (admins only). The server never sends a key back, only whether it is set.

@@ -58,7 +58,7 @@ class FakeChat:
     def __init__(self, reply=None, fail=False):
         self.reply, self.fail = reply, fail
 
-    async def complete_json(self, messages, model=None):
+    async def complete_json(self, messages, model=None, **kw):
         if self.fail:
             raise ChatError("down")
         return self.reply

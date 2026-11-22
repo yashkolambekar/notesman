@@ -12,6 +12,9 @@ type Props = {
   index: number;
   busy: boolean;
   onRegenerate: (steer: { nudges: string[]; comment: string }) => void;
+  /** Set when the last attempt found nothing relevant in the files: offer to answer from general knowledge. */
+  noMaterial?: boolean;
+  onAnswerAnyway?: () => void;
   onSave: (answer: string) => Promise<void>;
   onLock: () => void;
   onUnlock: () => void;
@@ -23,6 +26,8 @@ export default function QuestionPanel({
   index,
   busy,
   onRegenerate,
+  noMaterial,
+  onAnswerAnyway,
   onSave,
   onLock,
   onUnlock,
@@ -153,6 +158,17 @@ export default function QuestionPanel({
           {steer && (
             <p className="muted small last-steer">
               Last steer: <em>{steer}</em>
+            </p>
+          )}
+          {noMaterial && (
+            <p className="banner" role="alert">
+              <span>
+                Nothing in this subject&apos;s files is relevant to this question. Reword it, upload material that covers
+                it, or answer anyway from general knowledge (marked with a warning, no sources).
+              </span>
+              <button type="button" className="btn primary" disabled={busy} onClick={onAnswerAnyway}>
+                Answer anyway
+              </button>
             </p>
           )}
           <div className="row">
