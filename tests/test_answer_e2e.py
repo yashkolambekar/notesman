@@ -10,7 +10,7 @@ import pytest
 from notesman.answer.generate import NoMaterial, generate_answer
 from notesman.core.config import get_settings
 from notesman.db.base import SessionLocal, engine
-from notesman.db.models import File, Job, Subject
+from notesman.db.models import Course, File, Job, Subject
 from notesman.ingest.pipeline import process_job
 from notesman.llm.gemini import GeminiEmbedder
 from notesman.llm.openrouter import OpenRouterChat
@@ -54,7 +54,10 @@ def test_answer_end_to_end():
         sid, st = uuid.uuid4(), FakeStorage()
         try:
             async with SessionLocal() as db:
-                db.add(Subject(id=sid, name="Operating Systems"))
+                cid = uuid.uuid4()
+                db.add(Course(id=cid, name="zz test course"))
+                await db.flush()
+                db.add(Subject(id=sid, course_id=cid, name="Operating Systems"))
                 await db.flush()
                 jobs = []
                 for kind, name, pages in [("syllabus", "syllabus.pdf", SYLLABUS), ("reference", "galvin.pdf", REFERENCE)]:
@@ -95,7 +98,7 @@ def test_answer_end_to_end():
             async with SessionLocal() as db:
                 subj = await db.get(Subject, sid)
                 if subj:
-                    await db.delete(subj)
+                    await db.delete(await db.get(Course, subj.course_id))
                     await db.commit()
             await emb.aclose(); await chat.aclose(); await qd.close(); await engine.dispose()
 

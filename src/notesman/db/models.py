@@ -1,13 +1,16 @@
 import uuid
 from datetime import datetime
+from decimal import Decimal
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
     Index,
     Integer,
+    Numeric,
     String,
     Text,
     UniqueConstraint,
@@ -44,8 +47,48 @@ class User(Base):
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
-class Subject(Base):
-    __tablename__ = "subjects"
+class UserApiKey(Base):
+    """An admin's own provider keys, stored encrypted (core/crypto.py). One row per user."""
+
+    __tablename__ = "user_api_keys"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    gemini_enc: Mapped[str | None] = mapped_column(Text)
+    openrouter_enc: Mapped[str | None] = mapped_column(Text)
+    gemini_hint: Mapped[str | None] = mapped_column(String(8))  # last 4 chars, for display only
+    openrouter_hint: Mapped[str | None] = mapped_column(String(8))
+    updated_at: Mapped[datetime] = _created()
+
+
+class UsageEvent(Base):
+    """One paid call to a provider (chat or embedding), kept to show what the service costs."""
+
+    __tablename__ = "usage_events"
+    __table_args__ = (CheckConstraint("kind IN ('chat', 'embed')", name="kind"),)
+
+    id: Mapped[uuid.UUID] = _id()
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+    )
+    user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    kind: Mapped[str] = mapped_column(String(8))
+    purpose: Mapped[str] = mapped_column(String(16))
+    model: Mapped[str] = mapped_column(String(100))
+    input_tokens: Mapped[int] = mapped_column(Integer, server_default="0")
+    output_tokens: Mapped[int] = mapped_column(Integer, server_default="0")
+    cost_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), server_default="0")
+    estimated: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    question_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("questions.id", ondelete="SET NULL"), index=True
+    )
+    subject_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("subjects.id", ondelete="SET NULL"), index=True
+    )
+    file_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("files.id", ondelete="SET NULL"))
+
+
+class Course(Base):
+    __tablename__ = "courses"
 
     id: Mapped[uuid.UUID] = _id()
     name: Mapped[str] = mapped_column(String(120))
@@ -55,8 +98,42 @@ class Subject(Base):
     )
     created_at: Mapped[datetime] = _created()
 
+    subjects: Mapped[list["Subject"]] = relationship(back_populates="course", cascade="all, delete-orphan")
+
+
+class Subject(Base):
+    __tablename__ = "subjects"
+
+    id: Mapped[uuid.UUID] = _id()
+    course_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("courses.id", ondelete="CASCADE"), index=True
+    )
+    name: Mapped[str] = mapped_column(String(120))
+    description: Mapped[str | None] = mapped_column(Text)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+    created_at: Mapped[datetime] = _created()
+    # Archived = hidden from readers, still there for admins, who can restore it.
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    course: Mapped[Course] = relationship(back_populates="subjects")
     files: Mapped[list["File"]] = relationship(back_populates="subject", cascade="all, delete-orphan")
     papers: Mapped[list["Paper"]] = relationship(back_populates="subject", cascade="all, delete-orphan")
+
+
+class SubjectAdmin(Base):
+    """Grants one user admin rights on one subject (files, papers, questions)."""
+
+    __tablename__ = "subject_admins"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    subject_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("subjects.id", ondelete="CASCADE"), primary_key=True, index=True
+    )
+    granted_at: Mapped[datetime] = _created()
 
 
 class File(Base):
@@ -97,6 +174,7 @@ class Paper(Base):
     )
     title: Mapped[str] = mapped_column(String(200))
     created_at: Mapped[datetime] = _created()
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
@@ -150,6 +228,8 @@ class Job(Base):
         ForeignKey("files.id", ondelete="CASCADE"), index=True
     )
     stage: Mapped[str] = mapped_column(String(16), server_default="queued")
+    # Whose API key pays for this job (the admin who uploaded or retried the file).
+    user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     attempts: Mapped[int] = mapped_column(Integer, server_default="0")
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

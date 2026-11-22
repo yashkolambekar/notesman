@@ -7,7 +7,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    # Embeddings (Google AI Studio)
+    # Embeddings (Google AI Studio). The two API keys below are only for scripts and tests: the API and
+    # the worker use each admin's own keys stored in the DB.
     gemini_api_key: str = ""
     embed_model: str = "gemini-embedding-2"
     embed_dim: int = 1536
@@ -20,6 +21,16 @@ class Settings(BaseSettings):
     fast_model: str = ""
     grounding_check: bool = True
     default_marks: int = 5  # Mumbai University style: a 5-mark answer fills one page
+
+    # Spend tracking. OpenRouter reports the real cost of each chat call; these prices are only used when it
+    # does not, and for Gemini embeddings (which return no token counts, so tokens are estimated as chars/4).
+    # PLACEHOLDER DEFAULTS: set them to your actual provider prices (USD per million tokens).
+    embed_price_per_mtok_usd: float = 0.15
+    chat_price_in_per_mtok_usd: float = 3.0
+    chat_price_out_per_mtok_usd: float = 15.0
+
+    # Master key that encrypts admins' own API keys stored in the DB (Fernet key, see core/crypto.py)
+    api_key_encryption_key: str = ""
 
     # Postgres
     database_url: str = "postgresql+asyncpg://notesman:notesman@localhost:5432/notesman"

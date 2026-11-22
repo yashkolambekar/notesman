@@ -142,7 +142,8 @@ async def _unsupported(chat: OpenRouterChat, answer: str, passages: list[Passage
     msg = f"<sources>\n{_sources_block(passages)}\n</sources>\n\n<answer>\n{answer}\n</answer>"
     try:
         data = await chat.complete_json(
-            [{"role": "system", "content": GROUND_SYSTEM}, {"role": "user", "content": msg}], chat.fast_model
+            [{"role": "system", "content": GROUND_SYSTEM}, {"role": "user", "content": msg}], chat.fast_model,
+            purpose="grounding",
         )
     except ChatError as e:
         log.warning("grounding check failed (%s); skipping", e)
@@ -174,7 +175,7 @@ async def generate_answer(
     messages = build_messages(
         question, r, nudges=nudges, comment=comment, previous=previous, marks=marks_for(question, s.default_marks)
     )
-    answer = (await chat.complete(messages, temperature=0.2)).strip()
+    answer = (await chat.complete(messages, temperature=0.2, purpose="answer")).strip()
 
     checked = False
     if s.grounding_check:
@@ -189,7 +190,7 @@ async def generate_answer(
                 "sources). Keep everything else and keep the citations. Reply with the answer only."
             )
             try:
-                answer = (await chat.complete([*messages, {"role": "assistant", "content": answer}, {"role": "user", "content": fix}], temperature=0.1)).strip()
+                answer = (await chat.complete([*messages, {"role": "assistant", "content": answer}, {"role": "user", "content": fix}], temperature=0.1, purpose="fix")).strip()
             except ChatError as e:
                 log.warning("repair failed (%s); keeping the first draft", e)
 

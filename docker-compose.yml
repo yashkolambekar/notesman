@@ -11,11 +11,11 @@
 
 x-backend-env: &backend-env
   # Models
-  GEMINI_API_KEY: ${GEMINI_API_KEY:?}
+  # Admins bring their own Gemini/OpenRouter keys (stored encrypted with this master key)
+  API_KEY_ENCRYPTION_KEY: ${API_KEY_ENCRYPTION_KEY:?}
   EMBED_MODEL: ${EMBED_MODEL:-gemini-embedding-2}
   EMBED_DIM: ${EMBED_DIM:-1536}
   EMBED_BATCH_SIZE: ${EMBED_BATCH_SIZE:-16}
-  OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:?}
   CHAT_MODEL: ${CHAT_MODEL:?}
   FAST_MODEL: ${FAST_MODEL:-}
   GROUNDING_CHECK: ${GROUNDING_CHECK:-true}

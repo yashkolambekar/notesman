@@ -4,13 +4,11 @@ from fastapi import FastAPI
 from starlette.middleware.sessions import SessionMiddleware
 from sqlalchemy import text
 
-from notesman.api import admin, auth, papers, subjects
+from notesman.api import admin, auth, courses, keys, papers, subjects, usage
 from notesman.api.origin import OriginCheck
 from notesman.api.security import origin_of
 from notesman.core.config import get_settings
 from notesman.db.base import engine
-from notesman.llm.gemini import GeminiEmbedder
-from notesman.llm.openrouter import OpenRouterChat
 from notesman.retrieval.qdrant import ensure_collection, make_client
 
 
@@ -23,13 +21,8 @@ async def lifespan(app: FastAPI):
         app.state.qdrant_error = None
     except Exception as e:  # keep the API up so /health can explain what is wrong
         app.state.qdrant_error = str(e)
-    # Answer generation needs both keys; without them the endpoint answers 503 with a clear message.
-    app.state.embedder = GeminiEmbedder(s) if s.gemini_api_key else None
-    app.state.chat = OpenRouterChat(s) if s.openrouter_api_key else None
+    # LLM clients are built per request from the signed-in admin's own stored keys.
     yield
-    for c in (app.state.embedder, app.state.chat):
-        if c:
-            await c.aclose()
     await app.state.qdrant.close()
     await engine.dispose()
 
@@ -53,6 +46,9 @@ app.add_middleware(
 
 app.include_router(auth.router)
 app.include_router(admin.router)
+app.include_router(courses.router)
+app.include_router(keys.router)
+app.include_router(usage.router)
 app.include_router(subjects.router)
 app.include_router(papers.router)
 
@@ -73,6 +69,4 @@ async def health():
         "collection": s.qdrant_collection,
         "embed_model": s.embed_model,
         "embed_dim": s.embed_dim,
-        "gemini_key_set": bool(s.gemini_api_key),
-        "openrouter_key_set": bool(s.openrouter_api_key),
     }

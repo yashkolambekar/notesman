@@ -19,6 +19,7 @@ from typing import Literal
 import httpx
 
 from notesman.core.config import Settings
+from notesman.core.usage import Call, UsageCollector, embed_cost, estimate_tokens
 
 log = logging.getLogger(__name__)
 
@@ -63,13 +64,23 @@ def retry_delay(res: httpx.Response | None, attempt: int) -> float:
 
 
 class GeminiEmbedder:
-    def __init__(self, settings: Settings, client: httpx.AsyncClient | None = None, patient: bool = False):
-        if not settings.gemini_api_key:
-            raise RuntimeError("GEMINI_API_KEY is not set")
+    def __init__(
+        self,
+        settings: Settings,
+        client: httpx.AsyncClient | None = None,
+        patient: bool = False,
+        api_key: str | None = None,
+        usage: UsageCollector | None = None,
+    ):
+        key = api_key if api_key is not None else settings.gemini_api_key
+        if not key:
+            raise RuntimeError("No Gemini API key")
+        self._settings = settings
+        self.usage = usage
         self.model = settings.embed_model
         self.dim = settings.embed_dim
         self.patient = patient
-        self._key = settings.gemini_api_key
+        self._key = key
         self._client = client or httpx.AsyncClient(timeout=60)
 
     async def embed(
@@ -82,10 +93,10 @@ class GeminiEmbedder:
         formatted = [format_text(t, role, ti) for t, ti in zip(texts, titles, strict=True)]
         out: list[list[float]] = []
         for i in range(0, len(formatted), MAX_BATCH):
-            out.extend(await self._batch(formatted[i : i + MAX_BATCH]))
+            out.extend(await self._batch(formatted[i : i + MAX_BATCH], "embed_query" if role == "query" else "embed_doc"))
         return out
 
-    async def _batch(self, texts: list[str]) -> list[list[float]]:
+    async def _batch(self, texts: list[str], purpose: str = "embed_doc") -> list[list[float]]:
         body = {
             "requests": [
                 {
@@ -115,6 +126,11 @@ class GeminiEmbedder:
                 vectors = [e["values"] for e in res.json()["embeddings"]]
                 if len(vectors) != len(texts):
                     raise EmbedError("Gemini returned a different number of embeddings than inputs")
+                if self.usage is not None:  # Gemini reports no token counts: estimate them
+                    tokens = estimate_tokens(texts)
+                    self.usage.add(
+                        Call("embed", purpose, self.model, tokens, 0, embed_cost(self._settings, tokens), True)
+                    )
                 return [normalize(v, self.dim) for v in vectors]
 
             if not transient:

@@ -8,6 +8,7 @@ import re
 import httpx
 
 from notesman.core.config import Settings
+from notesman.core.usage import Call, UsageCollector, chat_cost_from_tokens
 
 log = logging.getLogger(__name__)
 URL = "https://openrouter.ai/api/v1/chat/completions"
@@ -19,12 +20,21 @@ class ChatError(RuntimeError):
 
 
 class OpenRouterChat:
-    def __init__(self, settings: Settings, client: httpx.AsyncClient | None = None):
-        if not settings.openrouter_api_key:
-            raise RuntimeError("OPENROUTER_API_KEY is not set")
+    def __init__(
+        self,
+        settings: Settings,
+        client: httpx.AsyncClient | None = None,
+        api_key: str | None = None,
+        usage: UsageCollector | None = None,
+    ):
+        key = api_key if api_key is not None else settings.openrouter_api_key
+        if not key:
+            raise RuntimeError("No OpenRouter API key")
+        self._settings = settings
+        self.usage = usage
         self.model = settings.chat_model
         self.fast_model = settings.fast_model or settings.chat_model
-        self._key = settings.openrouter_api_key
+        self._key = key
         self._client = client or httpx.AsyncClient(timeout=120)
 
     async def complete(
@@ -35,8 +45,9 @@ class OpenRouterChat:
         temperature: float | None = None,
         json_mode: bool = False,
         attempts: int = 3,
+        purpose: str = "chat",
     ) -> str:
-        body: dict = {"model": model or self.model, "messages": messages}
+        body: dict = {"model": model or self.model, "messages": messages, "usage": {"include": True}}
         if temperature is not None:
             body["temperature"] = temperature
         if json_mode:
@@ -57,8 +68,10 @@ class OpenRouterChat:
             if res.status_code >= 400:
                 raise ChatError(f"OpenRouter chat failed ({res.status_code}): {res.text[:300]}")
             try:
-                content = res.json()["choices"][0]["message"]["content"]
-            except (KeyError, IndexError, ValueError) as e:
+                data = res.json()
+                self._record(data, body["model"], purpose)
+                content = data["choices"][0]["message"]["content"]
+            except (KeyError, IndexError, ValueError, TypeError) as e:
                 raise ChatError(f"OpenRouter returned an unexpected response: {res.text[:200]}") from e
             if not content or not content.strip():
                 if attempt == attempts:
@@ -67,9 +80,23 @@ class OpenRouterChat:
             return content
         raise ChatError("OpenRouter failed")  # pragma: no cover
 
-    async def complete_json(self, messages: list[dict], model: str | None = None) -> dict:
+    def _record(self, data: dict, model: str, purpose: str) -> None:
+        """Note what this call cost: OpenRouter's own figure when present, else tokens times the configured price."""
+        if self.usage is None:
+            return
+        u = data.get("usage") if isinstance(data, dict) else None
+        if not isinstance(u, dict):
+            return
+        tin, tout = int(u.get("prompt_tokens") or 0), int(u.get("completion_tokens") or 0)
+        cost = u.get("cost")
+        estimated = not isinstance(cost, (int, float))
+        if estimated:
+            cost = chat_cost_from_tokens(self._settings, tin, tout)
+        self.usage.add(Call("chat", purpose, model, tin, tout, float(cost), estimated))
+
+    async def complete_json(self, messages: list[dict], model: str | None = None, *, purpose: str = "chat") -> dict:
         """Ask for JSON and parse it leniently (some models wrap it in prose or fences)."""
-        text = await self.complete(messages, model, temperature=0, json_mode=True)
+        text = await self.complete(messages, model, temperature=0, json_mode=True, purpose=purpose)
         return parse_json(text)
 
     async def aclose(self) -> None:

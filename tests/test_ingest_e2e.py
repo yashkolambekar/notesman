@@ -13,7 +13,7 @@ from sqlalchemy import select
 
 from notesman.core.config import get_settings
 from notesman.db.base import SessionLocal, engine
-from notesman.db.models import File, Job, Subject
+from notesman.db.models import Course, File, Job, Subject
 from notesman.ingest.pipeline import process_job
 from notesman.llm.gemini import GeminiEmbedder
 from notesman.retrieval.qdrant import delete_points, ensure_collection, make_client, subject_filter
@@ -53,7 +53,10 @@ def test_ingest_pdf():
         storage = FakeStorage({key: make_pdf()})
         try:
             async with SessionLocal() as db:
-                db.add(Subject(id=sid, name="zz ingest test"))
+                cid = uuid.uuid4()
+                db.add(Course(id=cid, name="zz test course"))
+                await db.flush()
+                db.add(Subject(id=sid, course_id=cid, name="zz ingest test"))
                 await db.flush()
                 db.add(File(id=fid, subject_id=sid, kind="reference", filename="os.pdf", size_bytes=1,
                             sha256=uuid.uuid4().hex, r2_key=key, status="processing"))
@@ -98,7 +101,7 @@ def test_ingest_pdf():
             async with SessionLocal() as db:
                 subj = await db.get(Subject, sid)
                 if subj:
-                    await db.delete(subj)
+                    await db.delete(await db.get(Course, subj.course_id))
                     await db.commit()
             await emb.aclose()
             await qd.close()

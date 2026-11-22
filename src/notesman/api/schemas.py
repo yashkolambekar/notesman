@@ -11,13 +11,36 @@ class PaperMetaOut(BaseModel):
     total: int
 
 
+class CourseIn(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    description: str | None = Field(default=None, max_length=1000)
+
+
+class CoursePatch(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    description: str | None = Field(default=None, max_length=1000)
+
+
+class CourseOut(BaseModel):
+    id: uuid.UUID
+    can_edit: bool = False  # the caller may rename it: a global admin, or admin of every subject in it
+    name: str
+    description: str | None
+    subject_count: int
+
+
 class SubjectOut(BaseModel):
     id: uuid.UUID
+    course_id: uuid.UUID
+    course_name: str
+    can_edit: bool  # the caller may administer this subject
     name: str
     description: str | None
     syllabus_files: int
     reference_files: int
     papers: list[PaperMetaOut]
+    archived: bool = False
+    archived_papers: list[PaperMetaOut] = []  # only sent to people who administer the subject
 
 
 class SubjectIn(BaseModel):
@@ -54,6 +77,8 @@ class QuestionOut(BaseModel):
     # Admin-only fields (None for readers)
     previous_answer_md: str | None = None
     last_steer: dict | None = None
+    cost_usd: float | None = None  # what generating this answer has cost so far
+    cost_calls: int | None = None
 
 
 class PaperOut(BaseModel):
@@ -61,6 +86,7 @@ class PaperOut(BaseModel):
     subject_id: uuid.UUID
     title: str
     questions: list[QuestionOut]
+    cost_usd: float | None = None  # admins only
 
 
 class PaperIn(BaseModel):
