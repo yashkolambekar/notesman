@@ -624,7 +624,6 @@ a.subject-name:hover { text-decoration: underline; text-decoration-color: var(--
 .spend-line { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; line-height: 1.6; }
 
 /* ---------- mobile ---------- */
-html, body { overflow-x: hidden; }
 img, video { max-width: 100%; }
 .md, .q-prompt, .panel-prompt, .file-name, h1, h2, h3 { overflow-wrap: anywhere; }
 .md table { display: block; overflow-x: auto; }
@@ -642,7 +641,7 @@ img, video { max-width: 100%; }
   h1, .page-head h1, .doc-head h1 { font-size: 24px; }
   .page-head { flex-direction: column; align-items: stretch; gap: 10px; }
 
-  .subject-grid { grid-template-columns: 1fr; gap: 16px; }
+  .subject-grid { grid-template-columns: minmax(0, 1fr); gap: 16px; }
   .paper-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
 
   .file, .subject-file, .users .user-row { grid-template-columns: minmax(0, 1fr) 28px; }
@@ -659,7 +658,9 @@ img, video { max-width: 100%; }
   .doc-bar { flex-wrap: wrap; }
   .rename-form { max-width: none; }
 
-  .work, .work.reader { gap: 16px; }
+  .work, .work.reader { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .work > *, .doc, .panel, .side, .card, main > * { min-width: 0; max-width: 100%; }
+  .md pre { max-width: 100%; }
   .side { position: static; }
   .doc { padding: 20px 14px 18px; box-shadow: 3px 3px 0 var(--ink); }
   .doc-head h1 { font-size: 24px; }
