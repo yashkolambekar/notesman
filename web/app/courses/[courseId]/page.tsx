@@ -124,7 +124,7 @@ export default function CoursePage({ params }: { params: Promise<{ courseId: str
               <Link href={newHref}>
                 <span className="plus">+</span>
                 <strong>New subject</strong>
-                <span className="muted small">Upload a syllabus and references</span>
+                <span className="muted small">Upload references and an optional syllabus</span>
               </Link>
             </li>
           </AdminOnly>

@@ -129,8 +129,8 @@ function NewSubjectForm({ courseId }: { courseId: string }) {
     <form className="card" onSubmit={submit} noValidate>
       <h1>New subject</h1>
       <p className="muted lead">
-        Add the syllabus and reference material. Papers for this subject will answer from these
-        files.
+        Add reference material. A syllabus is optional but recommended. Papers for this subject
+        will answer from these files.
       </p>
 
       <label className="field">
@@ -160,7 +160,7 @@ function NewSubjectForm({ courseId }: { courseId: string }) {
 
       <div className="drops">
         <FileDrop
-          label="Syllabus"
+          label="Syllabus (optional)"
           tone="syllabus"
           hint="Sets scope and depth of answers"
           disabled={busy}
@@ -193,7 +193,7 @@ function NewSubjectForm({ courseId }: { courseId: string }) {
 
       {items.length > 0 && !hasSyllabus && (
         <p className="warn small">
-          No syllabus file yet. Answers will not be scoped to a syllabus until you add one.
+          No syllabus added. That is fine. Answers will come from the references alone, and you can add a syllabus later.
         </p>
       )}
 
