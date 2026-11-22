@@ -37,6 +37,17 @@ export type SubjectFile = {
 
 export type Source = { n?: number; file: string; page: number | null; section?: string; snippet: string };
 
+export type Evaluation = {
+  completeness: number;
+  correctness: number;
+  accuracy: number;
+  summary: string;
+  issues: string[];
+  missing: string[];
+  model: string;
+  at: string;
+};
+
 export type Question = {
   id: string;
   position: string;
@@ -49,6 +60,8 @@ export type Question = {
   last_steer: { nudges: string[]; comment: string } | null;
   cost_usd: number | null; // admins only
   cost_calls: number | null;
+  evaluation: Evaluation | null; // admins only
+  evaluation_stale: boolean | null; // answer changed since it was scored
 };
 
 export type Paper = { id: string; subject_id: string; title: string; questions: Question[] };

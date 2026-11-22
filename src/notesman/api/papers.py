@@ -25,7 +25,8 @@ from notesman.api.keys import MissingKeys, missing_message, user_keys
 from notesman.core.crypto import KeyVaultError
 from notesman.core.usage import UsageCollector
 from notesman.llm.openrouter import OpenRouterChat
-from notesman.answer.generate import NoMaterial, generate_answer as run_generation
+from notesman.answer.evaluate import answer_sha, evaluate_answer
+from notesman.answer.generate import NoMaterial, generate_answer as run_generation, marks_for
 from notesman.core.config import get_settings
 from notesman.db.base import get_session
 from notesman.llm.gemini import EmbedError, GeminiEmbedder
@@ -53,6 +54,10 @@ def q_out(q: Question, admin: bool, cost: tuple[float, int] | None = None) -> Qu
         last_steer=q.last_steer if admin else None,
         cost_usd=cost[0] if admin and cost else (0.0 if admin else None),
         cost_calls=cost[1] if admin and cost else (0 if admin else None),
+        evaluation=q.evaluation if admin else None,
+        evaluation_stale=(
+            bool(q.evaluation) and q.evaluation.get("answer_sha") != answer_sha(q.answer_md) if admin else None
+        ),
     )
 
 
@@ -382,6 +387,49 @@ async def generate_answer(
     q.syllabus_match = draft.syllabus_match
     q.last_steer = {"nudges": body.nudges, "comment": body.comment} if (body.nudges or body.comment) else None
     q.model = draft.model
+    await db.commit()
+    await db.refresh(q)
+    return await q_out_admin(db, q)
+
+
+@router.post("/questions/{question_id}/evaluate", response_model=QuestionOut)
+async def evaluate_question(
+    question_id: uuid.UUID,
+    db: AsyncSession = Depends(get_session),
+    user: User | None = Depends(current_user),
+):
+    """Score the current answer with a cheaper model. On demand only: generation never calls this."""
+    q = await _question(db, question_id)
+    await _guard_question(db, user, q)
+    if not q.answer_md.strip():
+        raise HTTPException(409, "There is no answer to evaluate yet")
+    paper = await db.get(Paper, q.paper_id)
+    prompt, answer, sources, match = q.prompt, q.answer_md, list(q.sources or []), q.syllabus_match
+    subject_id, user_id = paper.subject_id, user.id
+    try:
+        own = await user_keys(db, user_id, ("openrouter",))
+    except MissingKeys as e:
+        raise HTTPException(400, missing_message(e)) from e
+    except KeyVaultError as e:
+        raise HTTPException(503, str(e)) from e
+    await db.rollback()
+
+    s = get_settings()
+    usage = UsageCollector()
+    chat = OpenRouterChat(s, api_key=own["openrouter"], usage=usage)
+    try:
+        result = await evaluate_answer(
+            chat, model=s.eval_model or chat.fast_model, question=prompt, answer_md=answer,
+            sources=sources, syllabus_match=match, marks=marks_for(prompt, s.default_marks),
+        )
+    except ChatError as e:
+        raise HTTPException(502, f"The evaluator model failed: {e}") from e
+    finally:
+        await chat.aclose()
+        await usage.flush(user_id=user_id, subject_id=subject_id, question_id=question_id)
+
+    q = await _question(db, question_id)
+    q.evaluation = result
     await db.commit()
     await db.refresh(q)
     return await q_out_admin(db, q)

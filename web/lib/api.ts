@@ -101,6 +101,7 @@ export const addQuestion = (paperId: string, prompt: string) =>
 export const saveAnswer = (id: string, answer_md: string) =>
   req<Question>(`/v1/questions/${id}`, { method: "PATCH", json: { answer_md } });
 export const lockQuestion = (id: string) => post<Question>(`/v1/questions/${id}/lock`);
+export const evaluateQuestion = (id: string) => post<Question>(`/v1/questions/${id}/evaluate`);
 export const unlockQuestion = (id: string) => post<Question>(`/v1/questions/${id}/unlock`);
 export const moveQuestion = (id: string, beforeId: string | null) =>
   post<Question>(`/v1/questions/${id}/move`, { before_id: beforeId });

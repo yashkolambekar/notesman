@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     # Cheaper model for query rewriting, reranking and the grounding check. Empty = use CHAT_MODEL.
     fast_model: str = ""
     grounding_check: bool = True
+    # Cheap model that scores finished answers on demand (completeness / correctness / accuracy). Empty = use FAST_MODEL.
+    eval_model: str = "z-ai/glm-5.3-flash"
     default_marks: int = 5  # Mumbai University style: a 5-mark answer fills one page
 
     # Spend tracking. OpenRouter reports the real cost of each chat call; these prices are only used when it

@@ -3,7 +3,15 @@
 import { useState } from "react";
 import { usd } from "@/lib/money";
 import Md from "./Md";
-import type { Question } from "@/lib/types";
+import type { Evaluation, Question } from "@/lib/types";
+
+const AXES: [keyof Pick<Evaluation, "completeness" | "correctness" | "accuracy">, string][] = [
+  ["completeness", "Completeness"],
+  ["correctness", "Correctness"],
+  ["accuracy", "Accuracy"],
+];
+
+const band = (n: number) => (n >= 8 ? "good" : n >= 6 ? "ok" : "bad");
 
 const NUDGES = ["Shorter", "More detail", "Add example", "Simpler words"];
 
@@ -16,6 +24,7 @@ type Props = {
   noMaterial?: boolean;
   onAnswerAnyway?: () => void;
   onSave: (answer: string) => Promise<void>;
+  onEvaluate: () => void;
   onLock: () => void;
   onUnlock: () => void;
   onDelete: () => void;
@@ -29,6 +38,7 @@ export default function QuestionPanel({
   noMaterial,
   onAnswerAnyway,
   onSave,
+  onEvaluate,
   onLock,
   onUnlock,
   onDelete,
@@ -79,6 +89,46 @@ export default function QuestionPanel({
               </li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {hasAnswer && (
+        <div className="panel-section">
+          <span className="eyebrow">Quality check</span>
+          {q.evaluation ? (
+            <div className="eval">
+              <div className="scores">
+                {AXES.map(([k, label]) => (
+                  <div key={k} className={`score ${band(q.evaluation![k])}`}>
+                    <strong>{q.evaluation![k]}<small>/10</small></strong>
+                    <span>{label}</span>
+                  </div>
+                ))}
+              </div>
+              {q.evaluation_stale && (
+                <p className="muted small">The answer changed since this check. Run it again for current scores.</p>
+              )}
+              {q.evaluation.summary && <p className="small">{q.evaluation.summary}</p>}
+              {q.evaluation.issues.length > 0 && (
+                <details>
+                  <summary>Issues ({q.evaluation.issues.length})</summary>
+                  <ul className="small">{q.evaluation.issues.map((t, i) => <li key={i}>{t}</li>)}</ul>
+                </details>
+              )}
+              {q.evaluation.missing.length > 0 && (
+                <details>
+                  <summary>Missing points ({q.evaluation.missing.length})</summary>
+                  <ul className="small">{q.evaluation.missing.map((t, i) => <li key={i}>{t}</li>)}</ul>
+                </details>
+              )}
+              <p className="muted small">Scored by {q.evaluation.model}. A cheaper model, so use it as a hint, not a verdict.</p>
+            </div>
+          ) : (
+            <p className="muted small">Not checked yet. A cheaper model scores the answer when you ask; it never runs on its own.</p>
+          )}
+          <button type="button" className="btn wide" disabled={busy} onClick={onEvaluate}>
+            {busy ? "Working…" : q.evaluation ? "Re-check answer" : "Check answer quality"}
+          </button>
         </div>
       )}
 

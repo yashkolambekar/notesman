@@ -205,6 +205,7 @@ class Question(Base):
     syllabus_match: Mapped[str | None] = mapped_column(Text)
     last_steer: Mapped[dict | None] = mapped_column(JSONB)  # {nudges: [...], comment: "..."}
     model: Mapped[str | None] = mapped_column(String(100))
+    evaluation: Mapped[dict | None] = mapped_column(JSONB)  # cheap-model scores, see answer/evaluate.py
     created_at: Mapped[datetime] = _created()
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

@@ -79,6 +79,8 @@ class QuestionOut(BaseModel):
     last_steer: dict | None = None
     cost_usd: float | None = None  # what generating this answer has cost so far
     cost_calls: int | None = None
+    evaluation: dict | None = None  # scores from the on-demand evaluator
+    evaluation_stale: bool | None = None  # the answer changed after it was scored
 
 
 class PaperOut(BaseModel):

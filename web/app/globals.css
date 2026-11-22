@@ -676,3 +676,14 @@ img, video { max-width: 100%; }
 @media (max-width: 400px) {
   .paper-grid { grid-template-columns: 1fr; }
 }
+
+.eval { display: flex; flex-direction: column; gap: 8px; margin: 6px 0 10px; }
+.scores { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.score { border: 1.5px solid var(--ink); border-radius: 6px; padding: 6px 8px; text-align: center; display: flex; flex-direction: column; }
+.score strong { font-size: 20px; line-height: 1.1; }
+.score small { font-size: 11px; font-weight: 600; opacity: 0.7; }
+.score span { font-size: 11px; font-weight: 650; }
+.score.good { background: var(--sage); color: var(--sage-ink); }
+.score.ok { background: var(--hi-soft); color: var(--warn); }
+.score.bad { background: #f8d7d3; color: #8a1f14; }
+.eval ul { margin: 4px 0 0; padding-left: 18px; }

@@ -10,6 +10,7 @@ import {
   addQuestion,
   deleteQuestion,
   exportUrl,
+  evaluateQuestion,
   generateAnswer,
   lockQuestion,
   moveQuestion,
@@ -98,6 +99,10 @@ export default function Workspace({ subject, paper }: Props) {
         throw e;
       }
     });
+    if (q) replace(q);
+  };
+  const evaluate = async (id: string) => {
+    const q = await run(id, () => evaluateQuestion(id));
     if (q) replace(q);
   };
   const save = async (id: string, answer: string) => {
@@ -320,6 +325,7 @@ export default function Workspace({ subject, paper }: Props) {
           noMaterial={noMaterial?.id === active.id}
           onAnswerAnyway={() => noMaterial && regenerate(active.id, noMaterial.steer, true)}
           onSave={(a) => save(active.id, a)}
+          onEvaluate={() => evaluate(active.id)}
           onLock={() => lock(active.id)}
           onUnlock={() => unlock(active.id)}
           onDelete={() => remove(active.id)}
