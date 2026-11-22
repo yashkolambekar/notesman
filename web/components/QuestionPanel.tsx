@@ -124,7 +124,7 @@ export default function QuestionPanel({
               <p className="muted small">Scored by {q.evaluation.model}. A cheaper model, so use it as a hint, not a verdict.</p>
             </div>
           ) : (
-            <p className="muted small">Not checked yet. A cheaper model scores the answer when you ask; it never runs on its own.</p>
+            <p className="muted small">Not checked yet. New and regenerated answers are scored automatically; use the button to score again.</p>
           )}
           <button type="button" className="btn wide" disabled={busy} onClick={onEvaluate}>
             {busy ? "Working…" : q.evaluation ? "Re-check answer" : "Check answer quality"}

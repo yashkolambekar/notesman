@@ -110,6 +110,14 @@ export default function CoursePage({ params }: { params: Promise<{ courseId: str
                       ))}
                     </ul>
                   )}
+                  {s.quality && (
+                    <p
+                      className="muted small tile-quality"
+                      title={`Completeness ${s.quality.completeness} · Correctness ${s.quality.correctness} · Accuracy ${s.quality.accuracy}`}
+                    >
+                      Avg answer quality {s.quality.avg}/10 · {s.quality.checked} checked
+                    </p>
+                  )}
                 </div>
 
                 <Link href={`/subjects/${s.id}`} className="btn tile-open">

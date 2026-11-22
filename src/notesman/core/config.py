@@ -17,11 +17,11 @@ class Settings(BaseSettings):
     # Chat (OpenRouter)
     openrouter_api_key: str = ""
     chat_model: str = "anthropic/claude-sonnet-5.5"
-    # Cheaper model for query rewriting, reranking and the grounding check. Empty = use CHAT_MODEL.
-    fast_model: str = ""
+    # Non-thinking model for query rewriting, reranking and the grounding check. Empty = use CHAT_MODEL.
+    fast_model: str = "anthropic/claude-haiku-5.5"
     grounding_check: bool = True
     # Cheap model that scores finished answers on demand (completeness / correctness / accuracy). Empty = use FAST_MODEL.
-    eval_model: str = "z-ai/glm-5.3-flash"
+    eval_model: str = "anthropic/claude-haiku-5.5"
     default_marks: int = 5  # Mumbai University style: a 5-mark answer fills one page
 
     # Spend tracking. OpenRouter reports the real cost of each chat call; these prices are only used when it

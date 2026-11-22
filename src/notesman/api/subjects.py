@@ -6,11 +6,11 @@ from pathlib import Path
 from typing import Literal
 
 from fastapi import APIRouter, Depends, File as FormFile, Form, HTTPException, Request, UploadFile
-from sqlalchemy import func, select
+from sqlalchemy import Float, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from notesman.api.deps import can_manage, current_user, is_global_admin, managed_subject_ids, require_admin, require_manager
-from notesman.api.schemas import FileOut, PaperMetaOut, SubjectIn, SubjectOut, SubjectPatch
+from notesman.api.schemas import FileOut, PaperMetaOut, QualityOut, SubjectIn, SubjectOut, SubjectPatch
 from notesman.core.config import get_settings
 from notesman.db.base import get_session
 from notesman.db.models import Course, File, Job, Paper, Question, Subject, User, UserApiKey
@@ -58,6 +58,34 @@ async def build_subject_outs(
             continue  # readers only see unarchived papers that have something finalised
         meta = PaperMetaOut(id=pid, title=title, locked=n_locked, total=total if edit else n_locked)
         (archived_papers if archived_at else papers)[sid].append(meta)
+    def axis(k: str):
+        return func.sum(cast(Question.evaluation[k].astext, Float))
+
+    quality_rows = await db.execute(
+        select(
+            Paper.subject_id, Question.status, func.count(), axis("completeness"), axis("correctness"), axis("accuracy")
+        )
+        .join(Paper, Paper.id == Question.paper_id)
+        .where(Paper.subject_id.in_(ids), Paper.archived_at.is_(None), Question.evaluation["completeness"].astext.is_not(None))  # also skips a JSON null
+        .group_by(Paper.subject_id, Question.status)
+    )
+    totals: dict[uuid.UUID, list[float]] = {}
+    for sid, status, n, c, k, a in quality_rows:
+        if sid not in managed and status != "locked":
+            continue  # readers only judge what they can see
+        t = totals.setdefault(sid, [0, 0.0, 0.0, 0.0])
+        t[0] += n
+        t[1] += c or 0
+        t[2] += k or 0
+        t[3] += a or 0
+    quality = {
+        sid: QualityOut(
+            avg=round((t[1] + t[2] + t[3]) / (3 * t[0]), 1), completeness=round(t[1] / t[0], 1),
+            correctness=round(t[2] / t[0], 1), accuracy=round(t[3] / t[0], 1), checked=int(t[0]),
+        )
+        for sid, t in totals.items()
+        if t[0]
+    }
     course_names = {
         cid: name
         for cid, name in await db.execute(
@@ -77,6 +105,7 @@ async def build_subject_outs(
             papers=papers[s.id],
             archived=s.archived_at is not None,
             archived_papers=archived_papers[s.id],
+            quality=quality.get(s.id),
         )
         for s in subjects
     ]

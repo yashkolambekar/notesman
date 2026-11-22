@@ -11,6 +11,16 @@ class PaperMetaOut(BaseModel):
     total: int
 
 
+class QualityOut(BaseModel):
+    """Average examiner score of a subject's checked answers (0-10)."""
+
+    avg: float
+    completeness: float
+    correctness: float
+    accuracy: float
+    checked: int
+
+
 class CourseIn(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     description: str | None = Field(default=None, max_length=1000)
@@ -41,6 +51,7 @@ class SubjectOut(BaseModel):
     papers: list[PaperMetaOut]
     archived: bool = False
     archived_papers: list[PaperMetaOut] = []  # only sent to people who administer the subject
+    quality: QualityOut | None = None  # None until an answer has been checked
 
 
 class SubjectIn(BaseModel):

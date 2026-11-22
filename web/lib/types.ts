@@ -10,6 +10,14 @@ export type Course = {
   can_edit: boolean;
 };
 
+export type Quality = {
+  avg: number; // 0-10, mean of the three examiner scores
+  completeness: number;
+  correctness: number;
+  accuracy: number;
+  checked: number; // answers that have been scored
+};
+
 export type Subject = {
   id: string;
   course_id: string;
@@ -22,6 +30,7 @@ export type Subject = {
   papers: PaperMeta[];
   archived: boolean;
   archived_papers: PaperMeta[]; // only for admins of the subject
+  quality: Quality | null;
 };
 
 export type SubjectFile = {

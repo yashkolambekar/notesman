@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import AddQuestion from "./AddQuestion";
 import Md from "./Md";
 import RenameTitle from "./RenameTitle";
 import { usd } from "@/lib/money";
@@ -27,6 +28,7 @@ const stripCites = (md: string) => md.replace(/[ \t]?\[\d+\](?!\()/g, "");
 type Props = { subject: Subject; paper: Paper };
 
 export default function Workspace({ subject, paper }: Props) {
+  const paperId = paper.id;
   const canWrite = subject.can_edit;
   const [preview, setPreview] = useState(false);
   // Non-admins (and anyone while auth is loading) only ever get the read-only view.
@@ -40,8 +42,6 @@ export default function Workspace({ subject, paper }: Props) {
   const [busy, setBusy] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [noMaterial, setNoMaterial] = useState<{ id: string; steer: { nudges: string[]; comment: string } } | null>(null);
-  const [draft, setDraft] = useState("");
-  const [adding, setAdding] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | "end" | null>(null);
   const [site, setSite] = useState(process.env.NEXT_PUBLIC_SITE_URL ?? "");
@@ -68,23 +68,18 @@ export default function Workspace({ subject, paper }: Props) {
     }
   };
 
-  const add = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const prompt = draft.trim();
-    if (!prompt || adding) return;
-    setAdding(true);
+  const add = useCallback(async (prompt: string): Promise<boolean> => {
     setError(null);
     try {
-      const q = await addQuestion(paper.id, prompt);
+      const q = await addQuestion(paperId, prompt);
       setQs((cur) => [...cur, q]);
       setActiveId(q.id);
-      setDraft("");
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not add question");
-    } finally {
-      setAdding(false);
+      return false;
     }
-  };
+  }, [paperId]);
 
   const regenerate = async (id: string, steer: { nudges: string[]; comment: string }, unsourced = false) => {
     setNoMaterial(null);
@@ -288,25 +283,7 @@ export default function Workspace({ subject, paper }: Props) {
             </div>
           )}
 
-          {!reader && (
-            <form className="add-q" onSubmit={add}>
-              <label htmlFor="newq" className="eyebrow">
-                Add a question
-              </label>
-              <div className="add-row">
-                <input
-                  id="newq"
-                  value={draft}
-                  maxLength={2000}
-                  onChange={(e) => setDraft(e.target.value)}
-                  placeholder="Type the next question and press Enter"
-                />
-                <button type="submit" className="btn primary" disabled={!draft.trim() || adding}>
-                  {adding ? "Adding…" : "Add"}
-                </button>
-              </div>
-            </form>
-          )}
+          {!reader && <AddQuestion onAdd={add} />}
         </article>
       </section>
 

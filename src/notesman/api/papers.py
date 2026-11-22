@@ -1,3 +1,4 @@
+import logging
 import re
 import uuid
 from datetime import UTC, datetime
@@ -33,6 +34,7 @@ from notesman.llm.gemini import EmbedError, GeminiEmbedder
 from notesman.llm.openrouter import ChatError
 from notesman.db.models import Paper, Question, Subject, UsageEvent, User
 
+log = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1", tags=["papers"])
 
 
@@ -259,6 +261,8 @@ async def edit_question(
     if body.prompt is not None:
         q.prompt = body.prompt.strip()
     if body.answer_md is not None:
+        if body.answer_md != q.answer_md:
+            q.evaluation = None  # the old scores described different text
         q.answer_md = body.answer_md
     await db.commit()
     return await q_out_admin(db, q)
@@ -387,9 +391,46 @@ async def generate_answer(
     q.syllabus_match = draft.syllabus_match
     q.last_steer = {"nudges": body.nudges, "comment": body.comment} if (body.nudges or body.comment) else None
     q.model = draft.model
+    q.evaluation = None  # scores of the previous answer no longer apply
     await db.commit()
+
+    # Score the new answer right away. Best effort: a failed check never loses the answer.
+    answer_md, sources, match = q.answer_md, list(q.sources or []), q.syllabus_match
+    await db.rollback()
+    try:
+        result = await _score_answer(
+            key=own["openrouter"], user_id=user_id, subject_id=subject_id, question_id=question_id,
+            prompt=prompt, answer=answer_md, sources=sources, match=match,
+        )
+    except ChatError as e:
+        log.warning("automatic quality check failed (%s); the answer is saved unscored", e)
+    else:
+        q = await _question(db, question_id)
+        if q.answer_md == answer_md:  # nobody edited it meanwhile
+            q.evaluation = result
+            await db.commit()
+
+    q = await _question(db, question_id)
     await db.refresh(q)
     return await q_out_admin(db, q)
+
+
+async def _score_answer(
+    *, key: str, user_id: uuid.UUID, subject_id: uuid.UUID, question_id: uuid.UUID,
+    prompt: str, answer: str, sources: list, match: str | None,
+) -> dict:
+    """Run the cheaper evaluator model on one answer and record what it cost. Raises ChatError."""
+    s = get_settings()
+    usage = UsageCollector()
+    chat = OpenRouterChat(s, api_key=key, usage=usage)
+    try:
+        return await evaluate_answer(
+            chat, model=s.eval_model or chat.fast_model, question=prompt, answer_md=answer,
+            sources=sources, syllabus_match=match, marks=marks_for(prompt, s.default_marks),
+        )
+    finally:
+        await chat.aclose()
+        await usage.flush(user_id=user_id, subject_id=subject_id, question_id=question_id)
 
 
 @router.post("/questions/{question_id}/evaluate", response_model=QuestionOut)
@@ -398,7 +439,7 @@ async def evaluate_question(
     db: AsyncSession = Depends(get_session),
     user: User | None = Depends(current_user),
 ):
-    """Score the current answer with a cheaper model. On demand only: generation never calls this."""
+    """Re-score the current answer by hand. New and regenerated answers are scored automatically."""
     q = await _question(db, question_id)
     await _guard_question(db, user, q)
     if not q.answer_md.strip():
@@ -414,19 +455,13 @@ async def evaluate_question(
         raise HTTPException(503, str(e)) from e
     await db.rollback()
 
-    s = get_settings()
-    usage = UsageCollector()
-    chat = OpenRouterChat(s, api_key=own["openrouter"], usage=usage)
     try:
-        result = await evaluate_answer(
-            chat, model=s.eval_model or chat.fast_model, question=prompt, answer_md=answer,
-            sources=sources, syllabus_match=match, marks=marks_for(prompt, s.default_marks),
+        result = await _score_answer(
+            key=own["openrouter"], user_id=user_id, subject_id=subject_id, question_id=question_id,
+            prompt=prompt, answer=answer, sources=sources, match=match,
         )
     except ChatError as e:
         raise HTTPException(502, f"The evaluator model failed: {e}") from e
-    finally:
-        await chat.aclose()
-        await usage.flush(user_id=user_id, subject_id=subject_id, question_id=question_id)
 
     q = await _question(db, question_id)
     q.evaluation = result
