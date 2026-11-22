@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { use, useState } from "react";
 import FileDrop from "@/components/FileDrop";
 import FileList, { type Item } from "@/components/FileList";
 import { createSubject, uploadFile } from "@/lib/api";
@@ -11,7 +11,7 @@ import RequireRole from "@/components/RequireRole";
 
 const NAME_MAX = 120;
 
-function NewSubjectForm() {
+function NewSubjectForm({ courseId }: { courseId: string }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [items, setItems] = useState<Item[]>([]);
@@ -59,7 +59,7 @@ function NewSubjectForm() {
     try {
       let id = subjectId;
       if (!id) {
-        const s = await createSubject({
+        const s = await createSubject(courseId, {
           name: name.trim(),
           description: description.trim() || undefined,
         });
@@ -216,10 +216,11 @@ function NewSubjectForm() {
   );
 }
 
-export default function NewSubjectPage() {
+export default function NewSubjectPage({ params }: { params: Promise<{ courseId: string }> }) {
+  const { courseId } = use(params);
   return (
     <RequireRole role="admin">
-      <NewSubjectForm />
+      <NewSubjectForm courseId={courseId} />
     </RequireRole>
   );
 }

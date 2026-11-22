@@ -1,4 +1,4 @@
-import type { FileKind, Paper, PaperMeta, Question, Subject, SubjectFile } from "./types";
+import type { Course, CourseSpend, Usage, FileKind, KeyStatus, Paper, PaperMeta, Question, Subject, SubjectFile } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -34,11 +34,18 @@ async function req<T>(path: string, init: RequestInit & { json?: unknown } = {})
 
 const post = <T>(path: string, json: unknown = {}) => req<T>(path, { method: "POST", json });
 
+// courses
+export const listCourses = () => req<Course[]>("/v1/courses");
+export const getCourse = (id: string) => req<Course>(`/v1/courses/${id}`);
+export const createCourse = (input: { name: string; description?: string }) =>
+  post<Course>("/v1/courses", input);
+export const deleteCourse = (id: string) => req<void>(`/v1/courses/${id}`, { method: "DELETE" });
+
 // subjects
-export const listSubjects = () => req<Subject[]>("/v1/subjects");
+export const listSubjects = (courseId: string) => req<Subject[]>(`/v1/courses/${courseId}/subjects`);
 export const getSubject = (id: string) => req<Subject>(`/v1/subjects/${id}`);
-export const createSubject = (input: { name: string; description?: string }) =>
-  post<Subject>("/v1/subjects", input);
+export const createSubject = (courseId: string, input: { name: string; description?: string }) =>
+  post<Subject>(`/v1/courses/${courseId}/subjects`, input);
 export const deleteSubject = (id: string) => req<void>(`/v1/subjects/${id}`, { method: "DELETE" });
 
 // files
@@ -94,3 +101,25 @@ export const moveQuestion = (id: string, beforeId: string | null) =>
 export const deleteQuestion = (id: string) => req<void>(`/v1/questions/${id}`, { method: "DELETE" });
 export const generateAnswer = (id: string, steer: { nudges: string[]; comment: string }) =>
   post<Question>(`/v1/questions/${id}/generate`, steer);
+
+// Own API keys (admins only). The server never sends a key back, only whether it is set.
+export const getApiKeys = () => req<KeyStatus>("/v1/me/api-keys");
+export const saveApiKeys = (keys: { gemini?: string; openrouter?: string }) =>
+  req<KeyStatus>("/v1/me/api-keys", { method: "PUT", json: keys });
+
+// Renaming (allowed to admins who control the item)
+export const renameCourse = (id: string, name: string) =>
+  req<Course>(`/v1/courses/${id}`, { method: "PATCH", json: { name } });
+export const renameSubject = (id: string, name: string) =>
+  req<Subject>(`/v1/subjects/${id}`, { method: "PATCH", json: { name } });
+export const renamePaper = (id: string, title: string) =>
+  req<PaperMeta>(`/v1/papers/${id}`, { method: "PATCH", json: { title } });
+
+// Archiving hides a subject or paper from readers; admins can restore it
+export const archiveSubject = (id: string) => post<Subject>(`/v1/subjects/${id}/archive`);
+export const unarchiveSubject = (id: string) => post<Subject>(`/v1/subjects/${id}/unarchive`);
+export const archivePaper = (id: string) => post<PaperMeta>(`/v1/papers/${id}/archive`);
+export const unarchivePaper = (id: string) => post<PaperMeta>(`/v1/papers/${id}/unarchive`);
+
+export const getCourseSpend = (id: string) => req<CourseSpend>(`/v1/courses/${id}/spend`);
+export const getUsage = () => req<Usage>("/v1/me/usage");

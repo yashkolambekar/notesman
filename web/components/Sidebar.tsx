@@ -12,9 +12,11 @@ type Props = {
   canWrite: boolean;
   /** Live counts for the open paper, so the list stays right while you edit. */
   current?: { locked: number; total: number };
+  /** Live title of the open paper, so a rename shows without reloading. */
+  currentTitle?: string;
 };
 
-export default function Sidebar({ subject, paperId, canWrite, current }: Props) {
+export default function Sidebar({ subject, paperId, canWrite, current, currentTitle }: Props) {
   const router = useRouter();
   const [adding, setAdding] = useState(false);
   const [title, setTitle] = useState("");
@@ -37,8 +39,8 @@ export default function Sidebar({ subject, paperId, canWrite, current }: Props) 
 
   return (
     <aside className="side">
-      <Link href="/subjects" className="back">
-        ← All subjects
+      <Link href={`/courses/${subject.course_id}`} className="back">
+        ← {subject.course_name}
       </Link>
 
       <div className="side-block subject-card">
@@ -63,7 +65,7 @@ export default function Sidebar({ subject, paperId, canWrite, current }: Props) 
                   href={`/subjects/${subject.id}/papers/${p.id}`}
                   className={p.id === paperId ? "active" : ""}
                 >
-                  <span className="paper-title">{p.title}</span>
+                  <span className="paper-title">{p.id === paperId && currentTitle ? currentTitle : p.title}</span>
                   <span className="muted small">
                     {counts.total === 0
                       ? "empty"

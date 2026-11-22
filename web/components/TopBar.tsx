@@ -17,8 +17,9 @@ export default function TopBar() {
       </span>
 
       <nav className="topnav">
-        <Link href="/subjects">Subjects</Link>
-        {isAdmin(user) && <Link href="/subjects/new">New subject</Link>}
+        <Link href="/courses">Courses</Link>
+        {user && <Link href="/settings/api-keys">API keys</Link>}
+        {user && <Link href="/settings/usage">Spending</Link>}
         {isSuperadmin(user) && <Link href="/admin/users">Admins</Link>}
 
         {!loading &&

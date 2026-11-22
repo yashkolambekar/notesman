@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { usd } from "@/lib/money";
 import Md from "./Md";
 import type { Question } from "@/lib/types";
 
@@ -144,6 +145,11 @@ export default function QuestionPanel({
               if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && !busy) regenerate();
             }}
           />
+          {q.cost_usd !== null && q.cost_calls ? (
+            <p className="muted small last-steer">
+              Cost so far {usd(q.cost_usd)} · {q.cost_calls} call{q.cost_calls === 1 ? "" : "s"}
+            </p>
+          ) : null}
           {steer && (
             <p className="muted small last-steer">
               Last steer: <em>{steer}</em>

@@ -110,7 +110,7 @@ h1 {
   margin-bottom: 6px;
 }
 
-input[type="text"], input:not([type]), textarea, select {
+input[type="text"], input[type="password"], input:not([type]), textarea, select {
   width: 100%;
   font: inherit;
   color: inherit;
@@ -576,3 +576,49 @@ a.subject-name:hover { text-decoration: underline; text-decoration-color: var(--
 .file-state { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; text-align: right; min-width: 0; }
 .file-state .err { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .retry { color: var(--ink); font-weight: 600; }
+
+/* ---------- paper cards (subject page) ---------- */
+.paper-grid {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px;
+}
+.paper-card {
+  background: var(--card);
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+.paper-card:hover { transform: translate(-1px, -1px); box-shadow: var(--shadow); }
+.paper-card a {
+  display: flex; flex-direction: column; gap: 10px; min-height: 140px;
+  padding: 16px 18px; color: var(--ink); text-decoration: none;
+}
+.paper-card h3 { font-family: var(--serif); font-size: 18px; line-height: 1.3; margin: 0; overflow-wrap: anywhere; }
+.paper-count { display: flex; align-items: baseline; gap: 6px; margin-top: auto; }
+.paper-count strong { font-size: 32px; line-height: 1; }
+.paper-progress { display: flex; flex-direction: column; gap: 4px; }
+.paper-progress .bar { height: 8px; border: 1.5px solid var(--ink); border-radius: 99px; background: #fff; overflow: hidden; }
+.paper-progress .bar span { display: block; height: 100%; background: var(--hi); }
+
+/* ---------- settings: API keys ---------- */
+.key-row { display: grid; gap: 8px; margin-bottom: 22px; }
+.key-row .add-row { align-items: center; }
+.key-state { font-size: 13px; }
+
+/* ---------- rename ---------- */
+.rename-btn {
+  margin-left: 12px; vertical-align: middle;
+  font: inherit; font-size: 13px; font-weight: 600; color: var(--muted);
+  background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline;
+}
+.rename-btn:hover { color: var(--ink); }
+.rename-form { margin-bottom: 8px; max-width: 560px; }
+.paper-actions { display: flex; gap: 14px; padding: 0 18px 12px; }
+.paper-actions .rename-btn { margin-left: 0; }
+
+/* ---------- home + spending ---------- */
+.usage-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 14px; }
+.usage-table th, .usage-table td { text-align: left; padding: 6px 10px 6px 0; border-bottom: 1.5px solid var(--rule); }
+.usage-table td.num, .usage-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.spend-line { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; line-height: 1.6; }

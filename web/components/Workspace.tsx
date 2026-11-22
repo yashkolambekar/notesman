@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Md from "./Md";
+import RenameTitle from "./RenameTitle";
+import { usd } from "@/lib/money";
 import Sidebar from "./Sidebar";
 import QuestionPanel from "./QuestionPanel";
-import { useAuth } from "./AuthProvider";
-import { isAdmin } from "@/lib/auth";
 import {
   addQuestion,
   deleteQuestion,
@@ -13,6 +13,7 @@ import {
   generateAnswer,
   lockQuestion,
   moveQuestion,
+  renamePaper,
   saveAnswer,
   unlockQuestion,
 } from "@/lib/api";
@@ -24,12 +25,12 @@ const stripCites = (md: string) => md.replace(/[ \t]?\[\d+\](?!\()/g, "");
 type Props = { subject: Subject; paper: Paper };
 
 export default function Workspace({ subject, paper }: Props) {
-  const { user } = useAuth();
-  const canWrite = isAdmin(user);
+  const canWrite = subject.can_edit;
   const [preview, setPreview] = useState(false);
   // Non-admins (and anyone while auth is loading) only ever get the read-only view.
   const reader = !canWrite || preview;
 
+  const [title, setTitle] = useState(paper.title);
   const [qs, setQs] = useState<Question[]>(paper.questions);
   const [activeId, setActiveId] = useState<string | null>(
     paper.questions.find((q) => q.status === "draft")?.id ?? paper.questions[0]?.id ?? null,
@@ -139,6 +140,7 @@ export default function Workspace({ subject, paper }: Props) {
         subject={subject}
         paperId={paper.id}
         canWrite={!reader}
+        currentTitle={title}
         current={{ locked: lockedCount, total: reader ? lockedCount : qs.length }}
       />
 
@@ -182,10 +184,19 @@ export default function Workspace({ subject, paper }: Props) {
           </div>
           <header className="doc-head">
             <span className="eyebrow">{subject.name}</span>
-            <h1>{paper.title}</h1>
+            <RenameTitle
+              value={title}
+              canEdit={!reader}
+              max={200}
+              onSave={async (n) => {
+                await renamePaper(paper.id, n);
+                setTitle(n);
+              }}
+            />
             <p className="muted small">
               {shown.length} question{shown.length === 1 ? "" : "s"}
               {!reader && ` · ${lockedCount} locked, ${qs.length - lockedCount} draft`}
+              {!reader && ` · ${usd(qs.reduce((n, q) => n + (q.cost_usd ?? 0), 0))} spent`}
             </p>
           </header>
 

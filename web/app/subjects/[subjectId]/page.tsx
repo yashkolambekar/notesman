@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { use, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
-import { createPaper, deleteFile, deleteSubject, getSubject, listFiles, retryFile, uploadFile } from "@/lib/api";
+import RenameTitle from "@/components/RenameTitle";
+import { archivePaper, archiveSubject, createPaper, unarchivePaper, unarchiveSubject, deleteFile, deleteSubject, getSubject, listFiles, renamePaper, renameSubject, retryFile, uploadFile } from "@/lib/api";
 import { isAdmin } from "@/lib/auth";
 import { formatSize, validateFile } from "@/lib/files";
 import type { FileKind } from "@/lib/types";
@@ -14,9 +15,11 @@ export default function SubjectPage({ params }: { params: Promise<{ subjectId: s
   const { subjectId } = use(params);
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
-  const admin = isAdmin(user);
+  const globalAdmin = isAdmin(user);
 
   const subject = useApi(() => getSubject(subjectId), [subjectId, user?.id], !authLoading);
+  // Admin rights are per subject: a global admin, or a user the superadmin assigned to it.
+  const admin = subject.data?.can_edit ?? false;
   const files = useApi(() => (admin ? listFiles(subjectId) : Promise.resolve([])), [subjectId, admin], !authLoading);
 
   // Keep the file list fresh while the worker is processing something.
@@ -74,34 +77,90 @@ export default function SubjectPage({ params }: { params: Promise<{ subjectId: s
 
   return (
     <section className="subject-page">
-      <Link href="/subjects" className="back">
-        ← All subjects
+      <Link href={`/courses/${s.course_id}`} className="back">
+        ← {s.course_name}
       </Link>
       <header className="page-head">
         <div>
-          <h1>{s.name}</h1>
+          <RenameTitle
+            value={s.name}
+            canEdit={admin}
+            max={120}
+            onSave={async (n) => {
+              await renameSubject(subjectId, n);
+              subject.reload();
+            }}
+          />
           {s.description && <p className="muted">{s.description}</p>}
         </div>
       </header>
 
+      {s.archived && (
+        <p className="banner" role="status">
+          This subject is archived: readers cannot see it.{" "}
+          {admin && (
+            <button type="button" className="rename-btn" onClick={() => guard(async () => { await unarchiveSubject(s.id); subject.reload(); })}>
+              Restore
+            </button>
+          )}
+        </p>
+      )}
+
       {msg && <p className="banner err" role="alert">{msg}</p>}
 
       <div className="card">
-        <h2 className="h2">Papers</h2>
+        <h2 className="h2">Papers <span className="muted small">({s.papers.length})</span></h2>
         {s.papers.length === 0 ? (
           <p className="muted">{admin ? "No papers yet. Create the first one." : "No papers have been published yet."}</p>
         ) : (
-          <ul className="tile-papers plain">
-            {s.papers.map((p) => (
-              <li key={p.id}>
-                <Link href={`/subjects/${s.id}/papers/${p.id}`}>
-                  <span>{p.title}</span>
-                  <span className="muted small">
-                    {p.total === 0 ? "empty" : admin ? `${p.locked}/${p.total} locked` : `${p.total} questions`}
-                  </span>
-                </Link>
-              </li>
-            ))}
+          <ul className="paper-grid">
+            {s.papers.map((p) => {
+              const pct = p.total ? Math.round((p.locked / p.total) * 100) : 0;
+              const done = p.total > 0 && p.locked === p.total;
+              return (
+                <li key={p.id} className="paper-card">
+                  <Link href={`/subjects/${s.id}/papers/${p.id}`}>
+                    <h3>{p.title}</h3>
+                    <div className="paper-count">
+                      <strong>{p.total}</strong>
+                      <span className="muted">{p.total === 1 ? "question" : "questions"}</span>
+                    </div>
+                    {admin && p.total > 0 && (
+                      <div className="paper-progress">
+                        <div className="bar" aria-hidden="true">
+                          <span style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className={`small ${done ? "ok" : "muted"}`}>
+                          {done ? "All locked" : `${p.locked}/${p.total} locked`}
+                        </span>
+                      </div>
+                    )}
+                    {p.total === 0 && <span className="muted small">Empty</span>}
+                  </Link>
+                  {admin && (
+                    <span className="paper-actions">
+                    <button
+                      type="button"
+                      className="rename-btn"
+                      onClick={() => {
+                        const n = prompt("Rename paper", p.title)?.trim();
+                        if (n && n !== p.title) guard(async () => { await renamePaper(p.id, n); subject.reload(); });
+                      }}
+                    >
+                      Rename
+                    </button>
+                    <button
+                      type="button"
+                      className="rename-btn"
+                      onClick={() => guard(async () => { await archivePaper(p.id); subject.reload(); })}
+                    >
+                      Archive
+                    </button>
+                    </span>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
         {admin && (
@@ -113,6 +172,29 @@ export default function SubjectPage({ params }: { params: Promise<{ subjectId: s
           </form>
         )}
       </div>
+
+      {admin && s.archived_papers.length > 0 && (
+        <div className="card top-gap">
+          <h2 className="h2">Archived papers <span className="muted small">({s.archived_papers.length})</span></h2>
+          <ul className="files">
+            {s.archived_papers.map((p) => (
+              <li key={p.id} className="file">
+                <div className="file-main">
+                  <Link href={`/subjects/${s.id}/papers/${p.id}`} className="file-name">{p.title}</Link>
+                  <span className="muted">{p.total} question{p.total === 1 ? "" : "s"}</span>
+                </div>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => guard(async () => { await unarchivePaper(p.id); subject.reload(); })}
+                >
+                  Restore
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {admin && (
         <div className="card top-gap">
@@ -172,14 +254,30 @@ export default function SubjectPage({ params }: { params: Promise<{ subjectId: s
         </div>
       )}
 
-      {admin && (
+      {admin && !s.archived && (
+        <p className="top-gap">
+          <button
+            type="button"
+            className="rename-btn"
+            style={{ marginLeft: 0 }}
+            onClick={() =>
+              confirm(`Archive "${s.name}"? Readers will no longer see it. You can restore it later.`) &&
+              guard(async () => { await archiveSubject(s.id); router.push(`/courses/${s.course_id}`); })
+            }
+          >
+            Archive subject
+          </button>
+        </p>
+      )}
+
+      {globalAdmin && (
         <p className="top-gap">
           <button
             type="button"
             className="link-danger"
             onClick={() =>
               confirm(`Delete "${s.name}" with all its papers and files? This cannot be undone.`) &&
-              guard(async () => { await deleteSubject(s.id); router.push("/subjects"); })
+              guard(async () => { await deleteSubject(s.id); router.push(`/courses/${s.course_id}`); })
             }
           >
             Delete subject
