@@ -622,3 +622,56 @@ a.subject-name:hover { text-decoration: underline; text-decoration-color: var(--
 .usage-table th, .usage-table td { text-align: left; padding: 6px 10px 6px 0; border-bottom: 1.5px solid var(--rule); }
 .usage-table td.num, .usage-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .spend-line { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; line-height: 1.6; }
+
+/* ---------- mobile ---------- */
+html, body { overflow-x: hidden; }
+img, video { max-width: 100%; }
+.md, .q-prompt, .panel-prompt, .file-name, h1, h2, h3 { overflow-wrap: anywhere; }
+.md table { display: block; overflow-x: auto; }
+
+@media (max-width: 720px) {
+  body { font-size: 14px; }
+  main, main:has(.work), main:has(.subjects-page), main:has(.users) { padding: 16px 12px 56px; }
+
+  .top { flex-wrap: wrap; gap: 8px 12px; padding: 10px 12px; }
+  .topnav { flex-wrap: wrap; gap: 6px 14px; min-width: 0; }
+  .who { padding-left: 0; border-left: 0; flex-wrap: wrap; min-width: 0; }
+  .who-name { max-width: 120px; }
+
+  .card { padding: 18px 14px; box-shadow: 3px 3px 0 var(--ink); }
+  h1, .page-head h1, .doc-head h1 { font-size: 24px; }
+  .page-head { flex-direction: column; align-items: stretch; gap: 10px; }
+
+  .subject-grid { grid-template-columns: 1fr; gap: 16px; }
+  .paper-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  .file, .subject-file, .users .user-row { grid-template-columns: minmax(0, 1fr) 28px; }
+  .file > select, .file > .file-status, .file > .file-state, .file > .chip, .users .user-row > * { grid-column: 1 / -1; }
+  .file-state { align-items: flex-start; text-align: left; }
+  .file > .icon { grid-column: 2; grid-row: 1; }
+
+  .row { flex-wrap: wrap; }
+  .row.end { justify-content: stretch; }
+  .row.end .btn { width: 100%; }
+  .add-row { flex-wrap: wrap; }
+  .add-row input { min-width: 0; flex: 1 1 100%; }
+  .add-row .btn { flex: 1 1 auto; }
+  .doc-bar { flex-wrap: wrap; }
+  .rename-form { max-width: none; }
+
+  .work, .work.reader { gap: 16px; }
+  .side { position: static; }
+  .doc { padding: 20px 14px 18px; box-shadow: 3px 3px 0 var(--ink); }
+  .doc-head h1 { font-size: 24px; }
+  .q { padding: 12px 10px 4px; }
+  .q-head { flex-wrap: wrap; gap: 6px 10px; }
+  .q-prompt { font-size: 16px; flex-basis: 100%; }
+  .panel { position: static; max-height: none; padding: 14px; box-shadow: 3px 3px 0 var(--ink); }
+
+  .usage-table { display: block; overflow-x: auto; white-space: nowrap; }
+  .banner { flex-wrap: wrap; }
+}
+
+@media (max-width: 400px) {
+  .paper-grid { grid-template-columns: 1fr; }
+}
